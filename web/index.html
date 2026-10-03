@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Facturación | Panel</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">F</span><div><strong>Facturación</strong><small>Panel operativo</small></div></div>
+      <nav>
+        <button class="nav-item active" data-section="dashboard">Resumen</button>
+        <button class="nav-item" data-section="documents">Comprobantes</button>
+        <button class="nav-item" data-section="new-invoice">Nueva factura</button>
+        <button class="nav-item" data-section="catalog">Clientes y stock</button>
+      </nav>
+      <div class="sidebar-footer"><span class="status-dot"></span> API conectada</div>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <div><p class="eyebrow">MÓDULO DE FACTURACIÓN</p><h1 id="page-title">Resumen</h1></div>
+        <a class="button ghost" href="/docs" target="_blank">Abrir API</a>
+      </header>
+      <div id="notice" class="notice hidden"></div>
+
+      <section id="dashboard" class="section active">
+        <div class="section-heading"><div><h2>Visión general</h2><p>Seguimiento de facturación y cobranza.</p></div><button class="button" id="refresh-dashboard">Actualizar</button></div>
+        <div class="kpis">
+          <article class="kpi"><span>Facturado</span><strong id="kpi-invoiced">$ 0,00</strong><small>Comprobantes emitidos</small></article>
+          <article class="kpi"><span>Cobrado</span><strong id="kpi-collected">$ 0,00</strong><small>Pagos registrados</small></article>
+          <article class="kpi"><span>Saldo pendiente</span><strong id="kpi-outstanding">$ 0,00</strong><small>Importe a cobrar</small></article>
+          <article class="kpi warning"><span>Deuda vencida</span><strong id="kpi-overdue">$ 0,00</strong><small>Requiere seguimiento</small></article>
+        </div>
+        <div class="dashboard-grid">
+          <article class="card"><div class="card-heading"><h3>Estado de cartera</h3><span id="document-count">0 documentos</span></div><div id="portfolio" class="portfolio"></div></article>
+          <article class="card"><div class="card-heading"><h3>Acciones rápidas</h3></div><div class="quick-actions"><button class="quick-action" data-section="new-invoice"><b>＋</b><span>Emitir factura<small>Crear un comprobante</small></span></button><button class="quick-action" data-section="documents"><b>◷</b><span>Registrar pago<small>Actualizar una deuda</small></span></button><a class="quick-action" href="/reports/documents.csv"><b>↓</b><span>Exportar CSV<small>Descargar reporte</small></span></a></div></article>
+        </div>
+      </section>
+
+      <section id="new-invoice" class="section">
+        <div class="section-heading"><div><h2>Emitir factura</h2><p>Seleccioná el cliente y los productos de la venta.</p></div></div>
+        <form id="invoice-form" class="card form-card">
+          <div class="form-grid"><label>Cliente<select id="client-select" required></select></label><label>Fecha<input id="issue-date" type="date"></label></div>
+          <div class="card-heading lines-heading"><h3>Productos</h3><button type="button" class="button secondary" id="add-line">Agregar producto</button></div>
+          <div id="invoice-lines"></div>
+          <div class="invoice-total"><span>Total estimado</span><strong id="invoice-total">$ 0,00</strong></div>
+          <button class="button primary submit-button" type="submit">Emitir factura</button>
+        </form>
+      </section>
+
+      <section id="documents" class="section">
+        <div class="section-heading"><div><h2>Comprobantes</h2><p>Consultá saldos, registrá pagos y corregí con notas de crédito.</p></div><button class="button" id="refresh-documents">Actualizar</button></div>
+        <div class="card table-card"><div class="table-wrap"><table><thead><tr><th>Comprobante</th><th>Cliente</th><th>Fecha</th><th>Estado</th><th>Total</th><th>Saldo</th><th>Acciones</th></tr></thead><tbody id="documents-table"></tbody></table></div></div>
+      </section>
+
+      <section id="catalog" class="section">
+        <div class="section-heading"><div><h2>Clientes y stock</h2><p>Datos demo disponibles para probar la emisión.</p></div></div>
+        <div class="catalog-grid"><article class="card"><div class="card-heading"><h3>Clientes</h3></div><div id="clients-list" class="list"></div></article><article class="card"><div class="card-heading"><h3>Productos y stock</h3></div><div id="products-list" class="list"></div></article></div>
+      </section>
+    </main>
+  </div>
+  <dialog id="payment-dialog"><form method="dialog" id="payment-form"><button class="dialog-close" value="cancel">×</button><h3>Registrar pago</h3><p id="payment-document"></p><label>Monto<input id="payment-amount" type="number" min="0.01" step="0.01" required></label><button class="button primary" value="default">Aplicar pago</button></form></dialog>
+  <dialog id="credit-dialog"><form method="dialog" id="credit-form"><button class="dialog-close" value="cancel">×</button><h3>Emitir nota de crédito</h3><p id="credit-document"></p><label>Motivo<input id="credit-reason" required minlength="3"></label><label class="checkbox"><input id="return-stock" type="checkbox"> Reponer mercadería en stock</label><button class="button primary" value="default">Emitir nota</button></form></dialog>
+  <script src="/app.js"></script>
+</body>
+</html>
