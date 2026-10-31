@@ -46,16 +46,21 @@ class DocumentInput(BaseModel):
     client_id: UUID
     lines: list[LineInput] = Field(min_length=1)
     issue_date: date | None = None
+    payment_days: int | None = Field(default=None, ge=0, le=365)
+    installment_count: int = Field(default=1, ge=1, le=120)
+    payment_method: str = Field(default="transferencia", min_length=2)
     idempotency_key: str | None = Field(default=None, min_length=1)
 
 
 class PaymentInput(BaseModel):
     amount: Decimal = Field(gt=0)
+    payment_method: str = Field(default="transferencia", min_length=2)
 
 
 class CreditNoteInput(BaseModel):
     reason: str = Field(min_length=3)
     return_stock: bool = False
+    lines: list[LineInput] | None = None
 
 
 def serialize_document(document: Document) -> dict[str, Any]:
@@ -73,6 +78,9 @@ def serialize_document(document: Document) -> dict[str, Any]:
         "total": str(document.total),
         "paid_amount": str(document.paid_amount),
         "balance": str(document.balance),
+        "installment_count": document.installment_count,
+        "payment_method": document.payment_method,
+        "payments": document.payments,
         "cae": document.cae,
         "original_document_id": str(document.original_document_id) if document.original_document_id else None,
         "lines": [
@@ -112,13 +120,16 @@ def make_document(payload: DocumentInput, document_type: DocumentType = Document
             )
         )
     issue_date = payload.issue_date or date.today()
+    payment_days = payload.payment_days if payload.payment_days is not None else client.payment_days
     return Document(
         id=uuid4(),
         document_type=document_type,
         client_id=client.id,
         lines=lines,
         issue_date=issue_date,
-        due_date=issue_date + timedelta(days=client.payment_days),
+        due_date=issue_date + timedelta(days=payment_days),
+        installment_count=payload.installment_count,
+        payment_method=payload.payment_method,
         idempotency_key=payload.idempotency_key,
     )
 
@@ -160,11 +171,23 @@ def list_products() -> list[dict[str, Any]]:
 
 
 @app.get("/documents")
-def list_documents(status: InvoiceStatus | None = None) -> list[dict[str, Any]]:
+def list_documents(
+    status: InvoiceStatus | None = None,
+    client_id: UUID | None = None,
+    document_type: DocumentType | None = None,
+    sort_by: str = Query(default="issue_date", pattern="^(issue_date|due_date|total|status)$"),
+    sort_order: str = Query(default="desc", pattern="^(asc|desc)$"),
+) -> list[dict[str, Any]]:
     store.refresh_overdue()
     documents = store.documents.values()
     if status:
         documents = (document for document in documents if document.status is status)
+    if client_id:
+        documents = (document for document in documents if document.client_id == client_id)
+    if document_type:
+        documents = (document for document in documents if document.document_type is document_type)
+    documents = list(documents)
+    documents.sort(key=lambda document: getattr(document, sort_by), reverse=sort_order == "desc")
     return [serialize_document(document) for document in documents]
 
 
@@ -184,6 +207,16 @@ def register_payment(document_id: UUID, payload: PaymentInput) -> dict[str, Any]
         raise HTTPException(status_code=404, detail="comprobante inexistente")
     try:
         applied = document.register_payment(payload.amount)
+        document.payments.append(
+            {
+                "amount": str(applied),
+                "payment_method": payload.payment_method,
+                "date": date.today().isoformat(),
+            }
+        )
+        store.audit_log.append(
+            {"action": "payment", "document_id": str(document.id), "date": date.today().isoformat()}
+        )
         return {"applied_amount": str(applied), "document": serialize_document(document)}
     except DomainError as error:
         raise domain_error(error) from error
@@ -195,7 +228,32 @@ def issue_credit_note(document_id: UUID, payload: CreditNoteInput) -> dict[str, 
     if original is None:
         raise HTTPException(status_code=404, detail="comprobante inexistente")
     try:
-        return serialize_document(store.create_credit_note(original, payload.reason, payload.return_stock))
+        lines = None
+        if payload.lines:
+            lines = []
+            for item in payload.lines:
+                product = store.products.get(item.product_id)
+                if product is None:
+                    raise DomainError(f"producto inexistente: {item.product_id}")
+                original_line = next(
+                    (line for line in original.lines if line.product_id == item.product_id), None
+                )
+                if original_line is None:
+                    raise DomainError("el producto no pertenece al comprobante original")
+                lines.append(
+                    InvoiceLine(
+                        product_id=product.id,
+                        product_name=product.name,
+                        quantity=item.quantity,
+                        unit_price=original_line.unit_price,
+                        discount_rate=original_line.discount_rate,
+                        tax_rate=original_line.tax_rate,
+                        unit_cost=original_line.unit_cost,
+                    )
+                )
+        return serialize_document(
+            store.create_credit_note(original, payload.reason, payload.return_stock, lines)
+        )
     except DomainError as error:
         raise domain_error(error) from error
 
@@ -233,12 +291,21 @@ def report_summary(
     }
 
 
+@app.get("/audit")
+def list_audit_log() -> list[dict[str, str]]:
+    return list(store.audit_log)
+
+
 @app.get("/reports/documents.csv")
-def export_documents_csv() -> StreamingResponse:
+def export_documents_csv(ids: list[UUID] | None = Query(default=None)) -> StreamingResponse:
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["id", "tipo", "numero", "cliente", "fecha", "estado", "total", "saldo"])
-    for document in store.documents.values():
+    documents = store.documents.values()
+    if ids:
+        selected = set(ids)
+        documents = (document for document in documents if document.id in selected)
+    for document in documents:
         client = store.clients[document.client_id]
         writer.writerow(
             [document.id, document.document_type, document.number, client.business_name, document.issue_date,
