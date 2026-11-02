@@ -53,6 +53,17 @@ def test_partial_payment_reaches_paid_status() -> None:
     assert invoice.status is InvoiceStatus.PAID
 
 
+def test_overpayment_is_rejected_without_changing_balance() -> None:
+    store, client, product = setup_store()
+    invoice = store.issue(make_invoice(client, product))
+
+    with pytest.raises(DomainError, match="excede"):
+        invoice.register_payment(invoice.total + Decimal("0.01"))
+
+    assert invoice.paid_amount == Decimal("0")
+    assert invoice.balance == invoice.total
+
+
 def test_credit_note_can_restore_stock() -> None:
     store, client, product = setup_store()
     invoice = store.issue(make_invoice(client, product))
@@ -61,3 +72,24 @@ def test_credit_note_can_restore_stock() -> None:
     assert note.document_type is DocumentType.CREDIT_NOTE
     assert store.products[product.id].stock == Decimal("3")
 
+
+def test_partial_credit_note_only_credits_selected_quantity() -> None:
+    store, client, product = setup_store()
+    invoice = store.issue(make_invoice(client, product))
+    line = invoice.lines[0]
+    partial = InvoiceLine(
+        line.product_id,
+        line.product_name,
+        Decimal("1"),
+        line.unit_price,
+        line.discount_rate,
+        line.tax_rate,
+        line.unit_cost,
+    )
+
+    note = store.create_credit_note(invoice, "Devolución parcial", return_stock=False, lines=[partial])
+
+    assert note.total == Decimal("121.00")
+    assert invoice.total == Decimal("242.00")
+    with pytest.raises(DomainError, match="supera"):
+        store.create_credit_note(invoice, "Duplicada", return_stock=False, lines=[invoice.lines[0]])

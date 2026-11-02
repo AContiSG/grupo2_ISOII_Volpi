@@ -51,6 +51,7 @@ class Client:
     iva_condition: str = "responsable_inscripto"
     credit_limit: Decimal = Decimal("0")
     payment_days: int = 30
+    credit_balance: Decimal = Decimal("0")
 
 
 @dataclass(frozen=True)
@@ -89,6 +90,9 @@ class Document:
     idempotency_key: str | None = None
     paid_amount: Decimal = Decimal("0")
     cae: str | None = None
+    installment_count: int = 1
+    payment_method: str = "transferencia"
+    payments: list[dict[str, str]] = field(default_factory=list)
 
     @property
     def subtotal(self) -> Decimal:
@@ -121,7 +125,9 @@ class Document:
             raise DomainError("el pago debe ser mayor a cero")
         if self.status in (InvoiceStatus.DRAFT, InvoiceStatus.VOID):
             raise DomainError("no se puede pagar este comprobante")
-        applied = min(amount, self.balance)
+        if amount > self.balance:
+            raise DomainError("el pago excede el saldo pendiente")
+        applied = amount
         self.paid_amount = money(self.paid_amount + applied)
         self.status = InvoiceStatus.PAID if self.balance == 0 else InvoiceStatus.PARTIALLY_PAID
         return applied
@@ -141,6 +147,7 @@ class InMemoryStore:
     documents: dict[UUID, Document] = field(default_factory=dict)
     counters: dict[tuple[DocumentType, int], int] = field(default_factory=dict)
     idempotency: dict[str, UUID] = field(default_factory=dict)
+    audit_log: list[dict[str, str]] = field(default_factory=list)
 
     def next_number(self, document_type: DocumentType, point_of_sale: int) -> int:
         key = (document_type, point_of_sale)
@@ -177,18 +184,45 @@ class InMemoryStore:
         self.documents[document.id] = document
         if document.idempotency_key:
             self.idempotency[document.idempotency_key] = document.id
+        self.audit_log.append(
+            {"action": "issue", "document_id": str(document.id), "date": document.issue_date.isoformat()}
+        )
         return document
 
     def create_credit_note(
-        self, original: Document, reason: str, return_stock: bool
+        self,
+        original: Document,
+        reason: str,
+        return_stock: bool,
+        lines: list[InvoiceLine] | None = None,
     ) -> Document:
         if original.status in (InvoiceStatus.DRAFT, InvoiceStatus.VOID):
             raise DomainError("la nota debe asociarse a un comprobante emitido")
+        note_lines = lines or original.lines
+        original_quantities = {
+            line.product_id: line.quantity for line in original.lines
+        }
+        credited_quantities: dict[UUID, Decimal] = {}
+        for document in self.documents.values():
+            if (
+                document.document_type is DocumentType.CREDIT_NOTE
+                and document.original_document_id == original.id
+            ):
+                for line in document.lines:
+                    credited_quantities[line.product_id] = (
+                        credited_quantities.get(line.product_id, Decimal("0")) + line.quantity
+                    )
+        for line in note_lines:
+            available = original_quantities.get(line.product_id, Decimal("0")) - credited_quantities.get(
+                line.product_id, Decimal("0")
+            )
+            if line.quantity <= 0 or line.quantity > available:
+                raise DomainError("la cantidad de la nota supera la cantidad facturada disponible")
         note = Document(
             id=uuid4(),
             document_type=DocumentType.CREDIT_NOTE,
             client_id=original.client_id,
-            lines=original.lines,
+            lines=note_lines,
             issue_date=date.today(),
             due_date=date.today(),
             original_document_id=original.id,
@@ -206,6 +240,9 @@ class InMemoryStore:
                     stock=product.stock + line.quantity,
                     tax_rate=product.tax_rate,
                 )
+        self.audit_log.append(
+            {"action": "credit_note", "document_id": str(note.id), "date": note.issue_date.isoformat()}
+        )
         return note
 
     def refresh_overdue(self, today: date | None = None) -> None:
