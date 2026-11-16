@@ -16,9 +16,9 @@ function notify(message, error = false) {
 function showSection(name) {
   document.querySelectorAll(".section").forEach((section) => section.classList.toggle("active", section.id === name));
   document.querySelectorAll(".nav-item").forEach((button) => button.classList.toggle("active", button.dataset.section === name));
-  const titles = { dashboard: "Resumen", documents: "Comprobantes", "new-invoice": "Nueva factura", catalog: "Clientes y stock" };
+  const titles = { dashboard: "Resumen", strategy: "Dashboard estratégico", documents: "Comprobantes", "new-invoice": "Nueva factura", catalog: "Clientes y stock" };
   $("#page-title").textContent = titles[name];
-  if (name === "dashboard") loadDashboard(); if (name === "documents") loadDocuments(); if (name === "catalog") renderCatalog();
+  if (name === "dashboard") loadDashboard(); if (name === "strategy") loadStrategy(); if (name === "documents") loadDocuments(); if (name === "catalog") renderCatalog();
 }
 async function loadData() {
   [state.clients, state.products, state.documents] = await Promise.all([api("/clients"), api("/products"), api("/documents")]);
@@ -84,4 +84,4 @@ document.querySelectorAll(".dialog-close").forEach((button) => button.addEventLi
 $("#document-status").addEventListener("change", loadDocuments); $("#document-sort").addEventListener("change", loadDocuments); $("#document-order").addEventListener("change", loadDocuments); $("#export-selected").addEventListener("click", exportSelected);
 $("#select-all-documents").addEventListener("change", (event) => document.querySelectorAll(".document-check").forEach((input) => { input.checked = event.target.checked; }));
 $("#issue-date").value = new Date().toISOString().slice(0, 10);
-loadData().catch((error) => notify(error.message, true));
+loadData().then(() => { const wanted = location.hash.slice(1); if (document.getElementById(wanted)?.classList.contains("section")) showSection(wanted); }).catch((error) => notify(error.message, true));

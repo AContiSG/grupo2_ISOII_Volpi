@@ -12,6 +12,7 @@
       <div class="brand"><span class="brand-mark">F</span><div><strong>Facturación</strong><small>Panel operativo</small></div></div>
       <nav>
         <button class="nav-item active" data-section="dashboard">Resumen</button>
+        <button class="nav-item" data-section="strategy">Dashboard estratégico</button>
         <button class="nav-item" data-section="documents">Comprobantes</button>
         <button class="nav-item" data-section="new-invoice">Nueva factura</button>
         <button class="nav-item" data-section="catalog">Clientes y stock</button>
@@ -51,6 +52,25 @@
         </form>
       </section>
 
+      <section id="strategy" class="section">
+        <div class="section-heading"><div><h2>Dashboard estratégico</h2><p id="strategy-asof">Cargando…</p></div></div>
+        <div class="filter-bar card" role="group" aria-label="Filtros del dashboard">
+          <label>Región<select id="filter-region"><option value="">Todas las regiones</option></select></label>
+          <label>Cliente<select id="filter-client"><option value="">Todos los clientes</option></select></label>
+          <div class="filter-period"><span>Período</span><div class="segmented" role="group" aria-label="Período"><button class="seg" data-months="6">6 meses</button><button class="seg active" data-months="12">12 meses</button><button class="seg" data-months="24">24 meses</button></div></div>
+          <button class="button secondary hidden" id="filter-reset" type="button">Limpiar filtros</button>
+        </div>
+        <div id="strategy-alerts"></div>
+        <div id="strategy-kpis" class="strat-kpis"></div>
+        <div class="strat-grid">
+          <div id="strategy-flow" class="span-2"></div><div id="strategy-margin"></div>
+          <div id="strategy-overdue" class="span-2"></div><div id="strategy-aging"></div>
+          <div id="strategy-upcoming"></div><div id="strategy-clients"></div><div id="strategy-categories"></div>
+          <div id="strategy-risk" class="span-2"></div><div id="strategy-regions"></div>
+          <div id="strategy-products" class="span-3"></div>
+        </div>
+      </section>
+
       <section id="documents" class="section">
         <div class="section-heading"><div><h2>Comprobantes</h2><p>Consultá saldos, registrá pagos y corregí con notas de crédito.</p></div><button class="button" id="refresh-documents">Actualizar</button></div>
         <div class="card filters"><label>Estado<select id="document-status"><option value="">Todos</option><option value="emitida">Emitida</option><option value="parcialmente_pagada">Parcialmente pagada</option><option value="pagada">Pagada</option><option value="vencida">Vencida</option></select></label><label>Ordenar<select id="document-sort"><option value="issue_date">Fecha</option><option value="due_date">Vencimiento</option><option value="total">Total</option><option value="status">Estado</option></select></label><label>Sentido<select id="document-order"><option value="desc">Descendente</option><option value="asc">Ascendente</option></select></label><button class="button secondary" id="export-selected" type="button">CSV seleccionados</button></div>
@@ -65,6 +85,8 @@
   </div>
   <dialog id="payment-dialog"><form id="payment-form"><button class="dialog-close" type="button">×</button><h3>Registrar pago</h3><p id="payment-document"></p><label>Monto<input id="payment-amount" type="number" min="0.01" step="0.01" required></label><label>Medio de pago<select id="payment-method-entry"><option>transferencia</option><option>efectivo</option><option>tarjeta</option><option>cheque</option></select></label><button class="button primary" type="submit">Aplicar pago</button></form></dialog>
   <dialog id="credit-dialog"><form id="credit-form"><button class="dialog-close" type="button">×</button><h3>Emitir nota de crédito</h3><p id="credit-document"></p><label>Ítem<select id="credit-product"></select></label><label>Cantidad<input id="credit-quantity" type="number" min="0.01" step="0.01"></label><label>Motivo<input id="credit-reason" required minlength="3"></label><label class="checkbox"><input id="return-stock" type="checkbox"> Reponer mercadería en stock</label><button class="button primary" type="submit">Emitir nota</button></form></dialog>
+  <script src="/tables.js"></script>
   <script src="/app.js"></script>
+  <script src="/dashboard.js"></script>
 </body>
 </html>

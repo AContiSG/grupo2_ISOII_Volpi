@@ -12,6 +12,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from .analytics import build_dashboard
 from .domain import (
     Client,
     Document,
@@ -289,6 +290,15 @@ def report_summary(
             if any(d.status is status for d in documents)
         },
     }
+
+
+@app.get("/reports/dashboard")
+def report_dashboard(
+    months: int = Query(default=12, ge=3, le=24),
+    region: str | None = Query(default=None),
+    client_id: UUID | None = Query(default=None),
+) -> dict[str, Any]:
+    return build_dashboard(store, months, region=region or None, client_id=client_id)
 
 
 @app.get("/audit")
