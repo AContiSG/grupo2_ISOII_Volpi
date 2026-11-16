@@ -1,6 +1,7 @@
 README.md
 pyproject.toml
 app/__init__.py
+app/analytics.py
 app/domain.py
 app/main.py
 modulo_facturacion.egg-info/PKG-INFO
@@ -8,4 +9,5 @@ modulo_facturacion.egg-info/SOURCES.txt
 modulo_facturacion.egg-info/dependency_links.txt
 modulo_facturacion.egg-info/requires.txt
 modulo_facturacion.egg-info/top_level.txt
+tests/test_analytics.py
 tests/test_domain.py
